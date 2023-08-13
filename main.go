@@ -40,8 +40,8 @@ func main() {
 
 	redirectURL := fmt.Sprintf("http://localhost:%v/callback", port)
 	auth := spotifyauth.New(
-		spotifyauth.WithClientID(string(clientID)),
-		spotifyauth.WithClientSecret(string(clientSecret)),
+		spotifyauth.WithClientID(strings.TrimSpace(string(clientID))),
+		spotifyauth.WithClientSecret(strings.TrimSpace(string(clientSecret))),
 		spotifyauth.WithRedirectURL(redirectURL),
 		spotifyauth.WithScopes(spotifyauth.ScopeUserReadCurrentlyPlaying),
 	)
