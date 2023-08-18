@@ -90,7 +90,7 @@ func main() {
 	}
 
 	client := spotify.New(auth.Client(ctx, token))
-	if err := wrtieClientTokenToFile(client); err != nil {
+	if err := wrtieClientTokenToFile(client, tokenFile); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -99,32 +99,42 @@ func main() {
 
 func printInfo(ctx context.Context, client *spotify.Client) {
 	ticker := time.NewTicker(time.Second)
-	title := ""
+	oldTitle := ""
 	for {
 		playing, err := client.PlayerCurrentlyPlaying(ctx)
 		if err != nil {
 			fmt.Printf("Error getting now playing info: %v", err)
 			return
 		}
-		if newTitle := playing.Item.Name; newTitle != title {
-			artists := artistNames(playing.Item.Artists)
-			fmt.Printf("%v\n%v\n\n", playing.Item.Name, artists)
-			title = newTitle
+		if newTitle := playingTitle(playing); newTitle != oldTitle {
+			artists := playingArtists(playing)
+			fmt.Printf("%v\n%v\n\n", newTitle, artists)
+			oldTitle = newTitle
 		}
 
 		<-ticker.C
 	}
 }
 
-func artistNames(as []spotify.SimpleArtist) string {
+func playingTitle(p *spotify.CurrentlyPlaying) string {
+	if p == nil || p.Item == nil {
+		return ""
+	}
+	return p.Item.Name
+}
+
+func playingArtists(p *spotify.CurrentlyPlaying) string {
+	if p == nil || p.Item == nil {
+		return ""
+	}
 	var names []string
-	for _, a := range as {
+	for _, a := range p.Item.Artists {
 		names = append(names, a.Name)
 	}
 	return strings.Join(names, ", ")
 }
 
-func wrtieClientTokenToFile(client *spotify.Client) error {
+func wrtieClientTokenToFile(client *spotify.Client, path string) error {
 	token, err := client.Token()
 	if err != nil {
 		return err
@@ -133,5 +143,5 @@ func wrtieClientTokenToFile(client *spotify.Client) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(tokenFile, j, 0666)
+	return os.WriteFile(path, j, 0666)
 }
