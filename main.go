@@ -108,7 +108,8 @@ func printInfo(ctx context.Context, client *spotify.Client) {
 		}
 		if newTitle := playingTitle(playing); newTitle != oldTitle {
 			artists := playingArtists(playing)
-			fmt.Printf("%v\n%v\n\n", newTitle, artists)
+			album := playingAlbum(playing)
+			fmt.Printf("%v\n%v\n%v\n\n%c", newTitle, artists, album, 0x4)
 			oldTitle = newTitle
 		}
 
@@ -132,6 +133,13 @@ func playingArtists(p *spotify.CurrentlyPlaying) string {
 		names = append(names, a.Name)
 	}
 	return strings.Join(names, ", ")
+}
+
+func playingAlbum(p *spotify.CurrentlyPlaying) string {
+	if p == nil || p.Item == nil {
+		return ""
+	}
+	return p.Item.Album.Name
 }
 
 func wrtieClientTokenToFile(client *spotify.Client, path string) error {
