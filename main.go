@@ -29,12 +29,12 @@ func main() {
 
 	clientID, err := os.ReadFile(clientIDFile)
 	if err != nil {
-		fmt.Printf("Can't read client ID file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Can't read client ID file: %v\n", err)
 		return
 	}
 	clientSecret, err := os.ReadFile(clientSecretFile)
 	if err != nil {
-		fmt.Printf("Can't read client secret file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Can't read client secret file: %v\n", err)
 		return
 	}
 
@@ -48,14 +48,14 @@ func main() {
 
 	rt, err := os.ReadFile(tokenFile)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("Error reading refresh token file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error reading refresh token file: %v\n", err)
 	}
 	var token *oauth2.Token
 	if len(rt) == 0 {
 		// There's no previously-saved token, launch a server to collect an access code.
 		state := uuid.NewString()
 		url := auth.AuthURL(state)
-		fmt.Printf("GO HERE TO AUTHENTICATE: \n%v\n\n", url)
+		fmt.Fprintf(os.Stderr, "GO HERE TO AUTHENTICATE: \n%v\n\n", url)
 
 		tc := make(chan string)
 		http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +78,7 @@ func main() {
 		}
 		token, err = auth.Exchange(ctx, code)
 		if err != nil {
-			fmt.Printf("Error Exchanging code: %v", err)
+			fmt.Fprintf(os.Stderr, "Error Exchanging code: %v", err)
 			return
 		}
 	} else {
@@ -103,7 +103,7 @@ func printInfo(ctx context.Context, client *spotify.Client) {
 	for {
 		playing, err := client.PlayerCurrentlyPlaying(ctx)
 		if err != nil {
-			fmt.Printf("Error getting now playing info: %v", err)
+			fmt.Fprintf(os.Stderr, "Error getting now playing info: %v", err)
 			return
 		}
 		if newTitle := playingTitle(playing); newTitle != oldTitle {
