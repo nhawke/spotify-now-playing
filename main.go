@@ -10,11 +10,15 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -121,7 +125,7 @@ func playingTitle(p *spotify.CurrentlyPlaying) string {
 	if p == nil || p.Item == nil {
 		return ""
 	}
-	return p.Item.Name
+	return normalize(p.Item.Name)
 }
 
 func playingArtists(p *spotify.CurrentlyPlaying) string {
@@ -132,14 +136,23 @@ func playingArtists(p *spotify.CurrentlyPlaying) string {
 	for _, a := range p.Item.Artists {
 		names = append(names, a.Name)
 	}
-	return strings.Join(names, ", ")
+	return normalize(strings.Join(names, ", "))
 }
 
 func playingAlbum(p *spotify.CurrentlyPlaying) string {
 	if p == nil || p.Item == nil {
 		return ""
 	}
-	return p.Item.Album.Name
+	return normalize(p.Item.Album.Name)
+}
+
+func normalize(str string) string {
+	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)))
+	ret, _, err := transform.String(t, str)
+	if err != nil {
+		return str
+	}
+	return ret
 }
 
 func wrtieClientTokenToFile(client *spotify.Client, path string) error {
