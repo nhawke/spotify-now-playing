@@ -1,12 +1,22 @@
 #include <Wire.h>
 #include <SerLCD.h>
 
-#define BUFSIZ 128
-#define EOF 4
+#define LINESIZ 64
+#define NUMLINES 4
+#define NUMCOLUMNS 20
+#define EOF 0x4
+
+// #define DEBUG_BUFFER 1
 
 SerLCD lcd;
-char buf[BUFSIZ];
-int pos = 0;
+
+struct linebuf
+{
+  char buf[LINESIZ];
+  int pos;
+};
+struct linebuf lines[NUMLINES];
+int lineno = 0;
 
 void setup()
 {
@@ -22,7 +32,7 @@ void setup()
 
   lcd.clear();
 
-  requestInfo();
+  Serial.println("READY");
 }
 
 void loop()
@@ -30,15 +40,22 @@ void loop()
   if (Serial.available() > 0)
   {
     char in = Serial.read();
-    buf[pos++] = in;
-    if (in == EOF)
+    struct linebuf *line = &lines[lineno];
+
+    line->buf[line->pos++] = in;
+    if (in == '\n')
     {
       // An EOF shouldn't count towards the length of the data so we decrement pos.
-      buf[--pos] = '\0';
-
+      line->buf[--line->pos] = '\0';
+      ++lineno;
+    }
+    else if (in == EOF)
+    {
+      // An EOF shouldn't count towards the length of the data so we decrement pos.
+      line->buf[--line->pos] = '\0';
       printBuffer();
       displayBuffer();
-      pos = 0;
+      resetBuffer();
     }
   }
 }
@@ -56,52 +73,54 @@ void displayBuffer()
 {
   lcd.clear();
 
-  int row = 0;
-  int column = 0;
-  for (int i = 0; i < pos; i++)
+  for (int i = 0; i < NUMLINES; ++i)
   {
-    char c = buf[i];
-    if (c == '\n')
+    lcd.setCursor(0, i);
+    struct linebuf *line = &lines[i];
+    for (int j = 0; j < line->pos; ++j)
     {
-      ++row;
-      lcd.setCursor(0, row);
-      column = 0;
-    }
-    else if (column < MAX_COLUMNS)
-    {
-      lcd.print(buf[i]);
-      ++column;
+      if (j == NUMCOLUMNS)
+      {
+        break;
+      }
+      char c = line->buf[j];
+      lcd.print(c);
     }
   }
 }
 
 void printBuffer()
 {
-  int columns = 64;
-  for (int i = 0; i < BUFSIZ; ++i)
+#ifdef DEBUG_BUFFER
+  for (int i = 0; i < NUMLINES; ++i)
   {
-    char c = buf[i];
-    switch (c)
+    for (int j = 0; j < LINESIZ; ++j)
     {
-    case '\n':
-      Serial.write("\\n ");
-      break;
-    case '\0':
-      Serial.write("\\0 ");
-      break;
-    default:
-      Serial.write(c);
-      Serial.write("  ");
+      char c = lines[i].buf[j];
+      switch (c)
+      {
+      case '\n':
+        Serial.write("\\n ");
+        break;
+      case '\0':
+        Serial.write("\\0 ");
+        break;
+      default:
+        Serial.write(c);
+        Serial.write("  ");
+      }
     }
-    if (i % columns == columns - 1)
-    {
-      Serial.write('\n');
-    }
+    Serial.write('\n');
   }
   Serial.write('\n');
+#endif
 }
 
-void requestInfo()
+void resetBuffer()
 {
-  Serial.println("READY");
+  for (int i = 0; i < NUMLINES; ++i)
+  {
+    lines[i].pos = 0;
+  }
+  lineno = 0;
 }
