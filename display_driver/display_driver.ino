@@ -21,6 +21,8 @@ void setup()
   setupLCD();
 
   lcd.clear();
+
+  requestInfo();
 }
 
 void loop()
@@ -75,7 +77,7 @@ void displayBuffer()
 
 void printBuffer()
 {
-  int lines = 16;
+  int columns = 64;
   for (int i = 0; i < BUFSIZ; ++i)
   {
     char c = buf[i];
@@ -91,10 +93,15 @@ void printBuffer()
       Serial.write(c);
       Serial.write("  ");
     }
-    if (i % lines == lines - 1)
+    if (i % columns == columns - 1)
     {
       Serial.write('\n');
     }
   }
   Serial.write('\n');
+}
+
+void requestInfo()
+{
+  Serial.println("READY");
 }
