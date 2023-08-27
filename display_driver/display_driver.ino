@@ -85,6 +85,11 @@ void displayBuffer()
       }
       char c = line->buf[j];
       lcd.print(c);
+      if (c == '|')
+      {
+        // Pipe characters trigger command mode, so must be escaped.
+        lcd.print(c);
+      }
     }
   }
 }
