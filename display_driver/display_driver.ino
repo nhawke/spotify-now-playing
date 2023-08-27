@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <SerLCD.h>
 
-#define BUFSIZ 256
+#define BUFSIZ 128
 #define EOF 4
 
 SerLCD lcd;
@@ -34,8 +34,8 @@ void loop()
       // An EOF shouldn't count towards the length of the data so we decrement pos.
       buf[--pos] = '\0';
 
-      Serial.print((char *)buf);
       printBuffer();
+      displayBuffer();
       pos = 0;
     }
   }
@@ -50,7 +50,7 @@ void setupLCD()
   lcd.noCursor();
 }
 
-void printBuffer()
+void displayBuffer()
 {
   lcd.clear();
 
@@ -68,9 +68,33 @@ void printBuffer()
     else if (column < MAX_COLUMNS)
     {
       lcd.print(buf[i]);
-      Serial.print(buf[i], HEX);
-      Serial.print(' ');
       ++column;
     }
   }
+}
+
+void printBuffer()
+{
+  int lines = 16;
+  for (int i = 0; i < BUFSIZ; ++i)
+  {
+    char c = buf[i];
+    switch (c)
+    {
+    case '\n':
+      Serial.write("\\n ");
+      break;
+    case '\0':
+      Serial.write("\\0 ");
+      break;
+    default:
+      Serial.write(c);
+      Serial.write("  ");
+    }
+    if (i % lines == lines - 1)
+    {
+      Serial.write('\n');
+    }
+  }
+  Serial.write('\n');
 }
