@@ -4,7 +4,6 @@
 #define LINESIZ 64
 #define NUMLINES 4
 #define NUMCOLUMNS 20
-#define EOF 0x4
 
 // #define DEBUG_BUFFER 1
 
@@ -45,14 +44,12 @@ void loop()
     line->buf[line->pos++] = in;
     if (in == '\n')
     {
-      // An EOF shouldn't count towards the length of the data so we decrement pos.
+      // Replace newline with terminator, and ensure it doesn't count towards the string length.
       line->buf[--line->pos] = '\0';
       ++lineno;
     }
-    else if (in == EOF)
+    if (lineno == NUMLINES)
     {
-      // An EOF shouldn't count towards the length of the data so we decrement pos.
-      line->buf[--line->pos] = '\0';
       printBuffer();
       displayBuffer();
       resetBuffer();

@@ -117,7 +117,6 @@ func main() {
 func printInfo(ctx context.Context, client *spotify.Client) {
 	var portWriter io.Writer = os.Stdout
 	var portReader io.Reader = os.Stdin
-	delim := "\n"
 	if portName != "" {
 		mode := &serial.Mode{
 			BaudRate: 9600,
@@ -132,7 +131,6 @@ func printInfo(ctx context.Context, client *spotify.Client) {
 		}
 		portWriter = io.MultiWriter(p, os.Stderr) // duplicate serial out to stderr for debugging
 		portReader = p
-		delim = fmt.Sprintf("%c", 0x4)
 	}
 
 	req := make(chan bool)
@@ -170,13 +168,10 @@ func printInfo(ctx context.Context, client *spotify.Client) {
 			}
 			artists := playingArtists(playing)
 			album := playingAlbum(playing)
-			info = fmt.Sprintf("%v\n%v\n%v\n", title, artists, album)
-			fmt.Fprintln(os.Stderr, "NEW TITLE")
-			fmt.Fprintf(portWriter, "%v%v", info, delim)
+			info = fmt.Sprintf("%v\n%v\n%v\n\n", title, artists, album)
 		case <-req:
-			fmt.Fprintln(os.Stderr, "READY")
-			fmt.Fprintf(portWriter, "%v%v", info, delim)
 		}
+		fmt.Fprint(portWriter, info)
 	}
 }
 
