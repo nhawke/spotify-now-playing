@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +17,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
+	"go.bug.st/serial"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
@@ -22,13 +26,22 @@ import (
 )
 
 const (
-	port             = 8888
+	httpPort         = 8888
 	tokenFile        = "access_token"
 	clientIDFile     = "client_id"
 	clientSecretFile = "client_secret"
 )
 
+var (
+	portName string
+)
+
+func init() {
+	flag.StringVar(&portName, "port", "", "Path to the serial port for communication with display. If empty, uses stdin/out")
+}
+
 func main() {
+	flag.Parse()
 	ctx := context.Background()
 
 	clientID, err := os.ReadFile(clientIDFile)
@@ -42,7 +55,7 @@ func main() {
 		return
 	}
 
-	redirectURL := fmt.Sprintf("http://localhost:%v/callback", port)
+	redirectURL := fmt.Sprintf("http://localhost:%v/callback", httpPort)
 	auth := spotifyauth.New(
 		spotifyauth.WithClientID(strings.TrimSpace(string(clientID))),
 		spotifyauth.WithClientSecret(strings.TrimSpace(string(clientSecret))),
@@ -68,7 +81,7 @@ func main() {
 		})
 
 		srv := http.Server{
-			Addr: fmt.Sprintf(":%d", port),
+			Addr: fmt.Sprintf(":%d", httpPort),
 		}
 		go srv.ListenAndServe()
 
@@ -77,7 +90,7 @@ func main() {
 		srv.Close()
 
 		if code == "" {
-			fmt.Println("NO CODE AHH")
+			fmt.Fprintf(os.Stderr, "NO CODE AHH")
 			return
 		}
 		token, err = auth.Exchange(ctx, code)
@@ -88,36 +101,82 @@ func main() {
 	} else {
 		token = new(oauth2.Token)
 		if err := json.Unmarshal(rt, token); err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			return
 		}
 	}
 
 	client := spotify.New(auth.Client(ctx, token))
 	if err := wrtieClientTokenToFile(client, tokenFile); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	printInfo(ctx, client)
 }
 
 func printInfo(ctx context.Context, client *spotify.Client) {
-	ticker := time.NewTicker(time.Second)
-	oldTitle := ""
-	for {
-		playing, err := client.PlayerCurrentlyPlaying(ctx)
+	var portWriter io.Writer = os.Stdout
+	var portReader io.Reader = os.Stdin
+	delim := "\n"
+	if portName != "" {
+		mode := &serial.Mode{
+			BaudRate: 9600,
+			// DataBits: 8,
+			// Parity:   serial.NoParity,
+			// StopBits: 1,
+		}
+		p, err := serial.Open(portName, mode)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting now playing info: %v", err)
+			fmt.Fprintf(os.Stderr, "Cannot open serial port %v: %v\n", portName, err)
 			return
 		}
-		if newTitle := playingTitle(playing); newTitle != oldTitle {
+		portWriter = io.MultiWriter(p, os.Stderr) // duplicate serial out to stderr for debugging
+		portReader = p
+		delim = fmt.Sprintf("%c", 0x4)
+	}
+
+	req := make(chan bool)
+	defer close(req)
+	go func() {
+		s := bufio.NewScanner(portReader)
+		for s.Scan() {
+			got := s.Text()
+			if got == "" {
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "GOT: %v\n", got)
+			if got == "READY" {
+				req <- true
+			}
+		}
+	}()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	info := ""
+
+	for {
+		select {
+		case <-ticker.C:
+			playing, err := client.PlayerCurrentlyPlaying(ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting now playing info: %v", err)
+				return
+			}
+			title := playingTitle(playing)
+			if strings.HasPrefix(info, title) {
+				continue
+			}
 			artists := playingArtists(playing)
 			album := playingAlbum(playing)
-			fmt.Printf("%v\n%v\n%v\n\n%c", newTitle, artists, album, 0x4)
-			oldTitle = newTitle
+			info = fmt.Sprintf("%v\n%v\n%v\n", title, artists, album)
+			fmt.Fprintln(os.Stderr, "NEW TITLE")
+			fmt.Fprintf(portWriter, "%v%v", info, delim)
+		case <-req:
+			fmt.Fprintln(os.Stderr, "READY")
+			fmt.Fprintf(portWriter, "%v%v", info, delim)
 		}
-
-		<-ticker.C
 	}
 }
 

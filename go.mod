@@ -9,7 +9,13 @@ require (
 )
 
 require (
+	github.com/creack/goselect v0.1.2 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+)
+
+require (
 	github.com/golang/protobuf v1.5.2 // indirect
+	go.bug.st/serial v1.6.0
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d // indirect
 	golang.org/x/text v0.12.0
 	google.golang.org/appengine v1.6.7 // indirect
