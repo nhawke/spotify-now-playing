@@ -36,7 +36,7 @@ void setup()
 
 void loop()
 {
-  if (Serial.available() > 0)
+  while (Serial.available() > 0)
   {
     char in = Serial.read();
     struct linebuf *line = &lines[lineno];
@@ -50,8 +50,8 @@ void loop()
     }
     if (lineno == NUMLINES)
     {
-      printBuffer();
       displayBuffer();
+      printBuffer();
       resetBuffer();
     }
   }
@@ -73,21 +73,33 @@ void displayBuffer()
   for (int i = 0; i < NUMLINES; ++i)
   {
     lcd.setCursor(0, i);
-    struct linebuf *line = &lines[i];
-    for (int j = 0; j < line->pos; ++j)
+    char sendBuf[LINESIZ];
+    int pos = 0;
+    for (int j = 0, len = lines[i].pos; j < len; ++j)
     {
-      if (j == NUMCOLUMNS)
+      if (j == NUMCOLUMNS || pos == LINESIZ)
       {
         break;
       }
-      char c = line->buf[j];
-      lcd.print(c);
+      char c = lines[i].buf[j];
+      sendBuf[pos++] = c;
       if (c == '|')
       {
-        // Pipe characters trigger command mode, so must be escaped.
-        lcd.print(c);
+        // Escape pipe characters, which trigger command mode on OpenLCD firmware.
+        if (pos < LINESIZ)
+        {
+          // Double the pipe character if there's room.
+          sendBuf[pos++] = c;
+        }
+        else
+        {
+          // Ignore the previous pipe if there's no room for a second one.
+          --pos;
+          break;
+        }
       }
     }
+    lcd.write((uint8_t *)&sendBuf[0], pos);
   }
 }
 
