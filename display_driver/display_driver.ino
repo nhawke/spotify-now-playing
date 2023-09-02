@@ -1,11 +1,11 @@
 #include <Wire.h>
 #include <SerLCD.h>
 
-#define LINESIZ 64
+#define LINESIZ 128
 #define NUMLINES 4
 #define NUMCOLUMNS 20
 
-// #define DEBUG_BUFFER 1
+#define DEBUG_BUFFER 1
 
 SerLCD lcd;
 
@@ -15,11 +15,10 @@ struct linebuf
   int pos;
 };
 struct linebuf lines[NUMLINES];
-int lineno = 0;
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial)
   {
     ;
@@ -36,24 +35,19 @@ void setup()
 
 void loop()
 {
-  while (Serial.available() > 0)
+  if (Serial.available() > 0)
   {
-    char in = Serial.read();
-    struct linebuf *line = &lines[lineno];
+    // New data to read
+    stopTicker();
+    readData();
+    printBuffer();
+    startTicker();
+  }
 
-    line->buf[line->pos++] = in;
-    if (in == '\n')
-    {
-      // Replace newline with terminator, and ensure it doesn't count towards the string length.
-      line->buf[--line->pos] = '\0';
-      ++lineno;
-    }
-    if (lineno == NUMLINES)
-    {
-      displayBuffer();
-      printBuffer();
-      resetBuffer();
-    }
+  int t = tick();
+  if (t >= 0)
+  {
+    displayBuffer(t % 2);
   }
 }
 
@@ -66,21 +60,36 @@ void setupLCD()
   lcd.noCursor();
 }
 
-void displayBuffer()
+void readData()
 {
-  lcd.clear();
+  int lineno = 0;
+  while (lineno < NUMLINES)
+  {
+    String in = Serial.readStringUntil('\n');
+    struct linebuf *line = &lines[lineno];
+
+    memcpy(&line->buf[0], in.c_str(), in.length());
+    line->pos = in.length();
+    ++lineno;
+  }
+}
+
+void displayBuffer(int scroll_offset)
+{
 
   for (int i = 0; i < NUMLINES; ++i)
   {
-    lcd.setCursor(0, i);
-    char sendBuf[LINESIZ];
+    char sendBuf[LINESIZ + 1];
     int pos = 0;
-    for (int j = 0, len = lines[i].pos; j < len; ++j)
+
+    if (lines[i].pos <= NUMCOLUMNS && scroll_offset != 0)
     {
-      if (j == NUMCOLUMNS || pos == LINESIZ)
-      {
-        break;
-      }
+      // this line doesn't need to be scrolled, leave it as is
+      continue;
+    }
+
+    for (int j = scroll_offset; pos < NUMCOLUMNS && j < lines[i].pos; ++j)
+    {
       char c = lines[i].buf[j];
       sendBuf[pos++] = c;
       if (c == '|')
@@ -99,7 +108,9 @@ void displayBuffer()
         }
       }
     }
-    lcd.write((uint8_t *)&sendBuf[0], pos);
+    sendBuf[pos] = '\0';
+    lcd.setCursor(0, i);
+    lcd.print(&sendBuf[0]);
   }
 }
 
@@ -130,11 +141,32 @@ void printBuffer()
 #endif
 }
 
-void resetBuffer()
+// Ticker related things
+#define TICK_DURATION_MS 2000
+unsigned long lastTick;
+bool ticking;
+int tickCount = 0;
+
+void startTicker()
 {
-  for (int i = 0; i < NUMLINES; ++i)
+  ticking = true;
+  tickCount = 0;
+  lastTick = millis();
+}
+
+void stopTicker()
+{
+  ticking = false;
+}
+
+// tick returns the tick count since the ticker was started with
+// startTicker(). If the ticker has not been started, returns -1.
+int tick()
+{
+  if (ticking && millis() - lastTick >= TICK_DURATION_MS)
   {
-    lines[i].pos = 0;
+    lastTick = millis();
+    return ++tickCount;
   }
-  lineno = 0;
+  return -1;
 }
