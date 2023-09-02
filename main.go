@@ -119,7 +119,7 @@ func printInfo(ctx context.Context, client *spotify.Client) {
 	var portReader io.Reader = os.Stdin
 	if portName != "" {
 		mode := &serial.Mode{
-			BaudRate: 9600,
+			BaudRate: 115200,
 			// DataBits: 8,
 			// Parity:   serial.NoParity,
 			// StopBits: 1,
