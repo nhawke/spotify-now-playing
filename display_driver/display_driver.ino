@@ -5,7 +5,7 @@
 #define NUMLINES 4
 #define NUMCOLUMNS 20
 
-#define DEBUG_BUFFER 1
+// #define DEBUG_BUFFER 1
 
 SerLCD lcd;
 
@@ -37,7 +37,6 @@ void loop()
 {
   if (Serial.available() > 0)
   {
-    // New data to read
     stopTicker();
     readData();
     printBuffer();
@@ -143,15 +142,17 @@ void printBuffer()
 
 // Ticker related things
 #define TICK_DURATION_MS 2000
-unsigned long lastTick;
+unsigned long lastTickMs;
 bool ticking;
 int tickCount = 0;
+int lastTickReturned = 0;
 
 void startTicker()
 {
   ticking = true;
   tickCount = 0;
-  lastTick = millis();
+  lastTickReturned = -1;
+  lastTickMs = millis();
 }
 
 void stopTicker()
@@ -160,13 +161,23 @@ void stopTicker()
 }
 
 // tick returns the tick count since the ticker was started with
-// startTicker(). If the ticker has not been started, returns -1.
+// startTicker(). If there hasn't been a new tick since the last call
+// to tick or if the ticker has not been started, returns -1.
 int tick()
 {
-  if (ticking && millis() - lastTick >= TICK_DURATION_MS)
+  if (!ticking)
   {
-    lastTick = millis();
-    return ++tickCount;
+    return -1;
   }
-  return -1;
+  if (millis() - lastTickMs >= TICK_DURATION_MS)
+  {
+    lastTickMs = millis();
+    ++tickCount;
+  }
+  if (tickCount == lastTickReturned)
+  {
+    return -1;
+  }
+  lastTickReturned = tickCount;
+  return tickCount;
 }
