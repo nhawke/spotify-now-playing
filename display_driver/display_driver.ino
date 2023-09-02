@@ -4,6 +4,7 @@
 #define LINESIZ 128
 #define NUMLINES 4
 #define NUMCOLUMNS 20
+#define MAX_SCROLL_AMOUNT 2
 
 // #define DEBUG_BUFFER 1
 
@@ -46,7 +47,7 @@ void loop()
   int t = tick();
   if (t >= 0)
   {
-    displayBuffer(t % 2);
+    displayBuffer(t % MAX_SCROLL_AMOUNT);
   }
 }
 
@@ -75,39 +76,49 @@ void readData()
 
 void displayBuffer(int scroll_offset)
 {
-
   for (int i = 0; i < NUMLINES; ++i)
   {
-    char sendBuf[LINESIZ + 1];
+    // Worst case, we must send NUMCOLUMNS escaped pipes + \0.
+    char sendBuf[NUMCOLUMNS * 2 + 1];
     int pos = 0;
 
     if (lines[i].pos <= NUMCOLUMNS && scroll_offset != 0)
     {
-      // this line doesn't need to be scrolled, leave it as is
+      // This line doesn't need to be scrolled, so leave it as is.
       continue;
     }
 
-    for (int j = scroll_offset; pos < NUMCOLUMNS && j < lines[i].pos; ++j)
+    // for each column in the display, populate sendBuf with the bytes needed to
+    // fill that column.
+    int j;
+    for (j = 0; j < NUMCOLUMNS; ++j)
     {
-      char c = lines[i].buf[j];
+      int idx = j + scroll_offset;
+      if (idx > lines[i].pos - 1)
+      {
+        // no more string left, pad with spaces
+        break;
+      }
+      char c = lines[i].buf[idx];
       sendBuf[pos++] = c;
       if (c == '|')
       {
         // Escape pipe characters, which trigger command mode on OpenLCD firmware.
-        if (pos < LINESIZ)
-        {
-          // Double the pipe character if there's room.
-          sendBuf[pos++] = c;
-        }
-        else
+        if (pos >= LINESIZ)
         {
           // Ignore the previous pipe if there's no room for a second one.
           --pos;
           break;
         }
+        sendBuf[pos++] = c;
       }
     }
+    // Pad the buffer with enough spaces to fill out the line
+    int spaces = NUMCOLUMNS - j;
+    memset(&sendBuf[pos], ' ', spaces);
+    pos += spaces;
     sendBuf[pos] = '\0';
+
     lcd.setCursor(0, i);
     lcd.print(&sendBuf[0]);
   }
