@@ -4,7 +4,7 @@
 #define LINESIZ 128
 #define NUMLINES 4
 #define NUMCOLUMNS 20
-#define MAX_SCROLL_AMOUNT 2
+#define MAX_SCROLL_AMOUNT 10
 
 // #define DEBUG_BUFFER 1
 
@@ -78,10 +78,9 @@ void displayBuffer(int scroll_offset)
 {
   for (int i = 0; i < NUMLINES; ++i)
   {
-    // Worst case, we must send NUMCOLUMNS escaped pipes + \0.
+    // Worst case, we need space to send a full line of escaped pipes + \0.
     char sendBuf[NUMCOLUMNS * 2 + 1];
-    int pos = 0;
-
+    int sendPos = 0;
     if (lines[i].pos <= NUMCOLUMNS && scroll_offset != 0)
     {
       // This line doesn't need to be scrolled, so leave it as is.
@@ -94,34 +93,43 @@ void displayBuffer(int scroll_offset)
     for (j = 0; j < NUMCOLUMNS; ++j)
     {
       int idx = j + scroll_offset;
-      if (idx > lines[i].pos - 1)
+      if (idx >= lines[i].pos)
       {
-        // no more string left, pad with spaces
+        // No string left.
         break;
       }
       char c = lines[i].buf[idx];
-      sendBuf[pos++] = c;
+      sendBuf[sendPos++] = c;
       if (c == '|')
       {
         // Escape pipe characters, which trigger command mode on OpenLCD firmware.
-        if (pos >= LINESIZ)
-        {
-          // Ignore the previous pipe if there's no room for a second one.
-          --pos;
-          break;
-        }
-        sendBuf[pos++] = c;
+        sendBuf[sendPos++] = c;
       }
     }
     // Pad the buffer with enough spaces to fill out the line
     int spaces = NUMCOLUMNS - j;
-    memset(&sendBuf[pos], ' ', spaces);
-    pos += spaces;
-    sendBuf[pos] = '\0';
+    memset(&sendBuf[sendPos], ' ', spaces);
+    sendPos += spaces;
+    sendBuf[sendPos] = '\0';
 
+    printSendBuffer(sendBuf, sendPos);
     lcd.setCursor(0, i);
-    lcd.print(&sendBuf[0]);
+    lcd.write(&sendBuf[0]);
   }
+}
+
+void printSendBuffer(char buf[], int n)
+{
+#ifdef DEBUG_BUFFER
+  Serial.print("SEND BUFFER LEN: ");
+  Serial.println(n, DEC);
+  for (int i = 0; i < n; ++i)
+  {
+    Serial.write(buf[i]);
+    Serial.write("  ");
+  }
+  Serial.write('\n');
+#endif
 }
 
 void printBuffer()
