@@ -4,7 +4,10 @@
 #define LINESIZ 128
 #define NUMLINES 4
 #define NUMCOLUMNS 20
-#define MAX_SCROLL_AMOUNT 10
+
+#define TICK_DURATION_MS 100
+#define TICKS_PER_SCROLL 7
+#define TICKS_PER_PAUSE 25
 
 // #define DEBUG_BUFFER 1
 
@@ -16,6 +19,17 @@ struct linebuf
   int pos;
 };
 struct linebuf lines[NUMLINES];
+
+enum displayState
+{
+  NO_DATA,
+  FRESH_DATA,
+  NOT_SCROLLING,
+  PRE_SCROLL_PAUSE,
+  POST_SCROLL_PAUSE,
+  SCROLLING,
+};
+displayState state;
 
 void setup()
 {
@@ -31,24 +45,26 @@ void setup()
 
   lcd.clear();
 
+  state = NO_DATA;
   Serial.println("READY");
+  resetTicker();
 }
 
 void loop()
 {
   if (Serial.available() > 0)
   {
-    stopTicker();
     readData();
     printBuffer();
-    startTicker();
+    state = FRESH_DATA;
   }
 
-  int t = tick();
-  if (t >= 0)
+  if (tick() < 0)
   {
-    displayBuffer(t % MAX_SCROLL_AMOUNT);
+    return;
   }
+
+  stepStateMachine();
 }
 
 void setupLCD()
@@ -160,23 +176,17 @@ void printBuffer()
 }
 
 // Ticker related things
-#define TICK_DURATION_MS 2000
 unsigned long lastTickMs;
 bool ticking;
 int tickCount = 0;
 int lastTickReturned = 0;
 
-void startTicker()
+void resetTicker()
 {
   ticking = true;
   tickCount = 0;
   lastTickReturned = -1;
   lastTickMs = millis();
-}
-
-void stopTicker()
-{
-  ticking = false;
 }
 
 // tick returns the tick count since the ticker was started with
@@ -199,4 +209,86 @@ int tick()
   }
   lastTickReturned = tickCount;
   return tickCount;
+}
+
+// State machine functions
+void stepStateMachine()
+{
+  switch (state)
+  {
+  case NO_DATA:
+  case NOT_SCROLLING:
+    break;
+  case FRESH_DATA:
+    state = freshData();
+    break;
+  case PRE_SCROLL_PAUSE:
+    state = scrollPause(false);
+    break;
+  case POST_SCROLL_PAUSE:
+    state = scrollPause(true);
+    break;
+  case SCROLLING:
+    state = scrolling();
+    break;
+  }
+}
+
+int charsToScroll = 0;
+displayState freshData()
+{
+  displayBuffer(0);
+
+  int longestLine = 0;
+  // Set next state based on whether we need to scroll or not.
+  for (int i = 0; i < NUMLINES; ++i)
+  {
+    if (lines[i].pos > longestLine)
+    {
+      longestLine = lines[i].pos;
+    }
+  }
+
+  if (longestLine > NUMCOLUMNS)
+  {
+    charsToScroll = longestLine - NUMCOLUMNS;
+    return PRE_SCROLL_PAUSE;
+  }
+  return NOT_SCROLLING;
+}
+
+displayState scrollPause(bool post)
+{
+  static int ticksPaused = 0;
+
+  // Stay paused for TICKS_PER_PAUSE ticks.
+  if (ticksPaused < TICKS_PER_PAUSE)
+  {
+    ++ticksPaused;
+    return state;
+  }
+  ticksPaused = 0;
+
+  // Either reset or begin scrolling.
+  if (post)
+  {
+    displayBuffer(0);
+    return PRE_SCROLL_PAUSE;
+  }
+  return SCROLLING;
+}
+
+displayState scrolling()
+{
+  static int scrolls = 0;
+
+  displayBuffer(++scrolls);
+
+  if (scrolls >= charsToScroll)
+  {
+    scrolls = 0;
+    return POST_SCROLL_PAUSE;
+  }
+  ++scrolls;
+  return SCROLLING;
 }
