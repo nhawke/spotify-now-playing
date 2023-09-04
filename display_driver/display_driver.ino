@@ -6,8 +6,9 @@
 #define NUMCOLUMNS 20
 
 #define TICK_DURATION_MS 100
-#define TICKS_PER_SCROLL 7
-#define TICKS_PER_PAUSE 25
+#define TICKS_PER_SCROLL_CHAR 2
+#define TICKS_BEFORE_SCROLL 30
+#define TICKS_AFTER_SCROLL 20
 
 // #define DEBUG_BUFFER 1
 
@@ -26,6 +27,7 @@ enum displayState
   FRESH_DATA,
   NOT_SCROLLING,
   PRE_SCROLL_PAUSE,
+  BETWEEN_SCROLL_PAUSE,
   POST_SCROLL_PAUSE,
   SCROLLING,
 };
@@ -223,10 +225,17 @@ void stepStateMachine()
     state = freshData();
     break;
   case PRE_SCROLL_PAUSE:
-    state = scrollPause(false);
+    state = scrollPause(TICKS_BEFORE_SCROLL, SCROLLING);
+    break;
+  case BETWEEN_SCROLL_PAUSE:
+    state = scrollPause(TICKS_PER_SCROLL_CHAR, SCROLLING);
     break;
   case POST_SCROLL_PAUSE:
-    state = scrollPause(true);
+    state = scrollPause(TICKS_AFTER_SCROLL, PRE_SCROLL_PAUSE);
+    if (state == PRE_SCROLL_PAUSE)
+    {
+      displayBuffer(0);
+    }
     break;
   case SCROLLING:
     state = scrolling();
@@ -257,25 +266,20 @@ displayState freshData()
   return NOT_SCROLLING;
 }
 
-displayState scrollPause(bool post)
+displayState scrollPause(int targetTicks, displayState doneState)
 {
   static int ticksPaused = 0;
 
-  // Stay paused for TICKS_PER_PAUSE ticks.
-  if (ticksPaused < TICKS_PER_PAUSE)
+  // Stay paused for target ticks.
+  if (ticksPaused < targetTicks)
   {
     ++ticksPaused;
     return state;
   }
   ticksPaused = 0;
 
-  // Either reset or begin scrolling.
-  if (post)
-  {
-    displayBuffer(0);
-    return PRE_SCROLL_PAUSE;
-  }
-  return SCROLLING;
+  // When done pausing, move to doneState.
+  return doneState;
 }
 
 displayState scrolling()
@@ -289,6 +293,5 @@ displayState scrolling()
     scrolls = 0;
     return POST_SCROLL_PAUSE;
   }
-  ++scrolls;
-  return SCROLLING;
+  return BETWEEN_SCROLL_PAUSE;
 }
