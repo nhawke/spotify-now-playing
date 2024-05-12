@@ -95,7 +95,7 @@ func main() {
 		}
 		token, err = auth.Exchange(ctx, code)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error Exchanging code: %v", err)
+			fmt.Fprintf(os.Stderr, "Error Exchanging code: %v\n", err)
 			return
 		}
 	} else {
@@ -159,7 +159,7 @@ func printInfo(ctx context.Context, client *spotify.Client) {
 		case <-ticker.C:
 			playing, err := client.PlayerCurrentlyPlaying(ctx)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error getting now playing info: %v", err)
+				fmt.Fprintf(os.Stderr, "Error getting now playing info: %v\n", err)
 				return
 			}
 			title := playingTitle(playing)
